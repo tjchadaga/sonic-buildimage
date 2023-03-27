@@ -59,30 +59,40 @@ class DeviceGlobalCfgMgr(Manager):
         cmd = ""
         if self.directory.path_exist("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME, "tsa_enabled"):
             tsa_status = self.directory.get_slot("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME)["tsa_enabled"]
-            if tsa_status == "true":
+            if tsa_status == "all":
                 cmds = cfg.replace("#012", "\n").split("\n")
                 log_notice("DeviceGlobalCfgMgr:: Device is isolated. Applying TSA route-maps")
-                cmd = self.get_ts_routemaps(cmds, self.tsa_template)            
+                cmd = self.get_ts_routemaps(cmds, self.tsa_template)
+            elif tsa_status == "external_only":
+                cmds = cfg.replace("#012", "\n").split("\n")
+                log_notice("DeviceGlobalCfgMgr:: Device external neighbors isolated")
+                cmd += self.get_ts_routemaps(self.cfg_mgr.get_text(), self.tsa_template, nbrs="external")
+                log_notice("DeviceGlobalCfgMgr:: Device internal neighbors un-isolated")
+                cmd += self.get_ts_routemaps(self.cfg_mgr.get_text(), self.tsb_template, nbrs="internal")
         return cmd
 
     def isolate_unisolate_device(self, tsa_status):
         """ API to get TSA/TSB route-maps and apply configuration"""
         cmd = "\n"
-        if tsa_status == "true":
+        if tsa_status == "all":
             log_notice("DeviceGlobalCfgMgr:: Device isolated. Executing TSA")
             cmd += self.get_ts_routemaps(self.cfg_mgr.get_text(), self.tsa_template)
-        else:
+        elif tsa_status == "none":
             log_notice("DeviceGlobalCfgMgr:: Device un-isolated. Executing TSB")
             cmd += self.get_ts_routemaps(self.cfg_mgr.get_text(), self.tsb_template)
-
+        elif tsa_status == "external_only":
+            log_notice("DeviceGlobalCfgMgr:: Device external neighbors isolated")
+            cmd += self.get_ts_routemaps(self.cfg_mgr.get_text(), self.tsa_template, nbrs="external")
+            log_notice("DeviceGlobalCfgMgr:: Device internal neighbors un-isolated")
+            cmd += self.get_ts_routemaps(self.cfg_mgr.get_text(), self.tsb_template, nbrs="internal")
         self.cfg_mgr.push(cmd)
         log_debug("DeviceGlobalCfgMgr::Done")
 
-    def get_ts_routemaps(self, cmds, ts_template):
+    def get_ts_routemaps(self, cmds, ts_template, nbrs="all"):
         if not cmds:
             return ""
 
-        route_map_names = self.__extract_out_route_map_names(cmds)
+        route_map_names = self.__extract_out_route_map_names(cmds, nbrs)
         return self.__generate_routemaps_from_template(route_map_names, ts_template)
 
     def __generate_routemaps_from_template(self, route_map_names, template):
@@ -102,12 +112,17 @@ class DeviceGlobalCfgMgr(Manager):
             cmd += "\n"
         return cmd
 
-    def __extract_out_route_map_names(self, cmds):
+    def __extract_out_route_map_names(self, cmds, nbrs):
         route_map_names = set() 
         out_route_map = re.compile(r'^\s*neighbor \S+ route-map (\S+) out$')
         for line in cmds:
             result = out_route_map.match(line)
             if result:
-                route_map_names.add(result.group(1))
+                rm = result.group(1)
+                if "VOQ" in rm or "_INTERNAL_" in rm:
+                    if nbrs == "internal" or nbrs == "all":
+                        route_map_names.add(rm)
+                else:
+                    route_map_names.add(rm)
         return route_map_names
 

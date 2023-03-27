@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source /usr/bin/TS
+
 # toggle the mux to auto if dualtor
 if [[ "$(sonic-cfggen -d -v DEVICE_METADATA.localhost.subtype | tr [:upper:] [:lower:])" == *"dualtor"* ]];
 then
@@ -7,5 +9,13 @@ then
   sudo config mux mode auto all
 fi
 
-/usr/bin/TS TSB
-echo "Please execute 'config save' to preserve System mode in Normal state after reboot or config reload"
+if ! is_chassis_supervisor; then
+  /usr/bin/TS TSB
+  echo "Please execute 'config save' to preserve System mode in Normal state after reboot or config reload"
+else
+  rexec all -c "TSA external-only"
+  sleep 60
+  rexec all -c "TSB"
+  echo "Please execute \"rexec all -c 'config save'\" to preserve System mode in Normal after reboot \
+  or config reload on all linecards"
+fi

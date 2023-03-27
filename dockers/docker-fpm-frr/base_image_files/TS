@@ -5,13 +5,18 @@
 
 PLATFORM=${PLATFORM:-`sonic-cfggen -H -v DEVICE_METADATA.localhost.platform`}
 
-if [[ $1 == "TSA" ]]; then
-    TSA_STATE_UPDATE='{"BGP_DEVICE_GLOBAL":{"STATE":{"tsa_enabled": "true"}}}'
+if [[ $1 == "TSA" and $2 == "external-only" ]]; then
+    TSA_STATE_UPDATE='{"BGP_DEVICE_GLOBAL":{"STATE":{"tsa_enabled": "external_only"}}}'
+    log_msg='System Mode: Normal -> Maintenance'
+    err_msg='System is already in Maintenance (external-only)'
+    desired_tsa_state=true
+elif [[ $1 == "TSA" ]]; then
+    TSA_STATE_UPDATE='{"BGP_DEVICE_GLOBAL":{"STATE":{"tsa_enabled": "all"}}}'
     log_msg='System Mode: Normal -> Maintenance'
     err_msg='System is already in Maintenance'
-    desired_tsa_state=true 
+    desired_tsa_state=true
 elif [[ $1 == "TSB" ]]; then
-    TSA_STATE_UPDATE='{"BGP_DEVICE_GLOBAL":{"STATE":{"tsa_enabled": "false"}}}'
+    TSA_STATE_UPDATE='{"BGP_DEVICE_GLOBAL":{"STATE":{"tsa_enabled": "none"}}}'
     log_msg='System Mode: Maintenance -> Normal'
     err_msg='System is already in Normal mode'
     desired_tsa_state=false    
@@ -38,7 +43,7 @@ if [[ ($NUM_ASIC -gt 1) ]]; then
                     echo "$err_msg"
                     logger -t $1 -p user.info "$err_msg"
                 else 
-                    sonic-cfggen -a "$TSA_STATE_UPDATE" -w -n $NAMESPACE_PREFIX$asic
+                    sonic-cfggen -a "$TSA_STATE_UPDATE" -w -n $NAMESPACE_PREFIX$asic                    
                     logger -t $1 -p user.info "$log_msg"
                     echo "$log_msg"
                 fi
@@ -56,7 +61,7 @@ else
                 echo "$err_msg"
                 logger -t $1 -p user.info "$err_msg"
             else              
-                sonic-cfggen -a "$TSA_STATE_UPDATE" -w
+                sonic-cfggen -a "$TSA_STATE_UPDATE" -w                
                 logger -t $1 -p user.info "$log_msg"
                 echo "$log_msg"
             fi
@@ -65,3 +70,12 @@ else
             docker exec -i bgp /usr/bin/$1
         fi
 fi
+
+is_chassis_supervisor() {
+    if [ -f /etc/sonic/chassisdb.conf ]; then
+        true
+        return
+    fi
+    false
+    return
+}

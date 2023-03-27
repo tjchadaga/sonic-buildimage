@@ -22,10 +22,21 @@ module sonic-bgp-device-global {
             container STATE {
                 description "BGP device-specific global data";
                 leaf tsa_enabled {
-                    type boolean;
-                    default "false";
-                    description
-                    "When set to true, Traffic is shifted away (TSA), i.e, BGP routes are not advertised to neighboring routers";
+                    type enumumeration {
+                        enum all {
+                            description "This field is set when traffic is shifted away (TSA) from all BGP neighbors,
+                            i,e, BGP routes are not advertised to iBGP or eBGP neighbors"                            
+                        }
+                        enum none {
+                            description "This field is set when traffic is shifted back (TSB) to all BGP neighbors,
+                            i,e, BGP routes are advertised to all iBGP and eBGP neighbors" 
+                        }
+                        enum external-only {
+                            description "This field is set when traffic is shifted away from external BGP neighbors only,
+                            i,e, BGP routes are advertised to iBGP neighbors, but not to eBGP neighbors" 
+                        }
+                    }
+                    default none
                 }
             } /* end of STATE container */
         } /* end of BGP_DEVICE_GLOBAL container */

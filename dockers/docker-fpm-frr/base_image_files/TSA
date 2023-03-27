@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source /usr/bin/TS
+
 # toggle the mux to standby if dualtor and any mux active
 if
 [[ "$(sonic-cfggen -d -v DEVICE_METADATA.localhost.subtype | tr [:upper:] [:lower:])" == *"dualtor"* ]] &&
@@ -9,5 +11,12 @@ then
   sudo config mux mode standby all
 fi
 
-/usr/bin/TS TSA
-echo "Please execute 'config save' to preserve System mode in Maintenance after reboot or config reload"
+if ! is_chassis_supervisor; then
+  /usr/bin/TS TSA $1
+  echo "Please execute 'config save' to preserve System mode in Maintenance after reboot or config reload"
+else
+  rexec all -c "TSA $1"
+  echo "Please execute \"rexec all -c 'config save'\" to preserve System mode in Maintenance after reboot \
+  or config reload on all linecards"s
+fi
+
