@@ -41,13 +41,29 @@ class DeviceGlobalCfgMgr(Manager):
         if not data:
             log_err("DeviceGlobalCfgMgr:: data is None")
             return False
-
-        if "tsa_enabled" in data:
-            self.cfg_mgr.commit()
-            self.cfg_mgr.update()
-            self.isolate_unisolate_device(data["tsa_enabled"])
+        
+        self.cfg_mgr.commit()
+        self.cfg_mgr.update()       
+            
+        if "tsa_enabled" in data and "external_only" in data:
+            self.directory.put(self.db_name, self.table_name, "external_only", data["external_only"])
             self.directory.put(self.db_name, self.table_name, "tsa_enabled", data["tsa_enabled"])
-            return True        
+            self.isolate_unisolate_device(data["tsa_enabled"], data["external_only"])
+            return True
+        if "external_only" in data:
+            self.directory.put(self.db_name, self.table_name, "external_only", data["external_only"])
+            if self.directory.path_exist("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME, "tsa_enabled"):
+                tsa_enabled = self.directory.get_slot("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME)["tsa_enabled"]
+                if tsa_enabled == True:
+                    self.isolate_unisolate_device(data["tsa_enabled"], external_only)
+            return True
+        elif "tsa_enabled" in data:
+            self.directory.put(self.db_name, self.table_name, "tsa_enabled", data["tsa_enabled"])
+            if self.directory.path_exist("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME, "external_only"):
+                external_only = self.directory.get_slot("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME)["external_only"]
+                self.isolate_unisolate_device(data["tsa_enabled"], external_only)
+            return True
+
         return False
 
     def del_handler(self, key):
@@ -57,32 +73,47 @@ class DeviceGlobalCfgMgr(Manager):
     def check_state_and_get_tsa_routemaps(self, cfg):
         """ API to get TSA route-maps if device is isolated"""
         cmd = ""
-        if self.directory.path_exist("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME, "tsa_enabled"):
+
+        if self.directory.path_exist("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME, "tsa_enabled") \
+        and self.directory.path_exist("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME, "external_only"):
             tsa_status = self.directory.get_slot("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME)["tsa_enabled"]
+            external_only = self.directory.get_slot("CONFIG_DB", swsscommon.CFG_BGP_DEVICE_GLOBAL_TABLE_NAME)["external_only"]
             if tsa_status == "true":
                 cmds = cfg.replace("#012", "\n").split("\n")
                 log_notice("DeviceGlobalCfgMgr:: Device is isolated. Applying TSA route-maps")
-                cmd = self.get_ts_routemaps(cmds, self.tsa_template)            
+                if external_only == "true":
+                    log_notice("DeviceGlobalCfgMgr:: Device external neighbors isolated")
+                    cmd = self.get_ts_routemaps(cmds, self.tsa_template, nbrs="external")
+                    log_notice("DeviceGlobalCfgMgr:: Device internal neighbors un-isolated")
+                    cmd = self.get_ts_routemaps(cmds, self.tsa_template, nbrs="external")
+                else:
+                    cmd = self.get_ts_routemaps(cmds, self.tsa_template)
+                    log_notice("DeviceGlobalCfgMgr:: Device is isolated. Applying TSA route-maps")
         return cmd
 
-    def isolate_unisolate_device(self, tsa_status):
+    def isolate_unisolate_device(self, tsa_status, external_only):
         """ API to get TSA/TSB route-maps and apply configuration"""
         cmd = "\n"
-        if tsa_status == "true":
+        if tsa_status == "true" and external_only == "true":
+            log_notice("DeviceGlobalCfgMgr:: Device external neighbors isolated")
+            cmd += self.get_ts_routemaps(self.cfg_mgr.get_text(), self.tsa_template, nbrs="external")
+            log_notice("DeviceGlobalCfgMgr:: Device internal neighbors un-isolated")
+            cmd += self.get_ts_routemaps(self.cfg_mgr.get_text(), self.tsb_template, nbrs="internal")
+        elif tsa_status == "true":
             log_notice("DeviceGlobalCfgMgr:: Device isolated. Executing TSA")
             cmd += self.get_ts_routemaps(self.cfg_mgr.get_text(), self.tsa_template)
-        else:
+        elif tsa_status == "false":
             log_notice("DeviceGlobalCfgMgr:: Device un-isolated. Executing TSB")
             cmd += self.get_ts_routemaps(self.cfg_mgr.get_text(), self.tsb_template)
 
         self.cfg_mgr.push(cmd)
         log_debug("DeviceGlobalCfgMgr::Done")
 
-    def get_ts_routemaps(self, cmds, ts_template):
+    def get_ts_routemaps(self, cmds, ts_template, nbrs="all"):
         if not cmds:
             return ""
 
-        route_map_names = self.__extract_out_route_map_names(cmds)
+        route_map_names = self.__extract_out_route_map_names(cmds, nbrs)
         return self.__generate_routemaps_from_template(route_map_names, ts_template)
 
     def __generate_routemaps_from_template(self, route_map_names, template):
@@ -102,12 +133,18 @@ class DeviceGlobalCfgMgr(Manager):
             cmd += "\n"
         return cmd
 
-    def __extract_out_route_map_names(self, cmds):
+    def __extract_out_route_map_names(self, cmds, nbrs):
         route_map_names = set() 
         out_route_map = re.compile(r'^\s*neighbor \S+ route-map (\S+) out$')
         for line in cmds:
             result = out_route_map.match(line)
             if result:
-                route_map_names.add(result.group(1))
+                rm = result.group(1)
+                if "VOQ" in rm or "_INTERNAL_" in rm:
+                    if nbrs == "internal" or nbrs == "all":
+                        route_map_names.add(rm)
+                else:
+                    if nbrs == "external" or nbrs == "all":
+                        route_map_names.add(rm)
         return route_map_names
 

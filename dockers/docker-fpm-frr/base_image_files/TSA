@@ -9,5 +9,18 @@ then
   sudo config mux mode standby all
 fi
 
-/usr/bin/TS TSA
-echo "Please execute 'config save' to preserve System mode in Maintenance after reboot or config reload"
+if [ -f /etc/sonic/chassisdb.conf ]; then
+  check_status
+  echo $?
+  #rexec all -c "TSA $1"
+  echo "Please execute \"rexec all -c 'sudo config save -y'\" to preserve System mode in Maintenance after reboot \
+  or config reload on all linecards"
+else
+  /usr/bin/TS TSA $1
+  echo "Please execute 'sudo config save' to preserve System mode in Maintenance after reboot or config reload"
+fi
+
+function check_status()
+{
+  rexec all -c "TSC"
+}

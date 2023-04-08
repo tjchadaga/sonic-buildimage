@@ -1,10 +1,19 @@
 #!/bin/bash
 
 switch_type=`sonic-cfggen -d -v "DEVICE_METADATA['localhost']['switch_type']"`
+external_only=`sonic-cfggen -d -v BGP_DEVICE_GLOBAL.STATE.external_only`
 # Check whether the routemap is for internal BGP sessions.
 function is_internal_route_map()
 {
-    [[ "$1" =~ .*"_INTERNAL_".* && $switch_type != "chassis-packet" ]]
+  if [[ $switch_type != "chassis-packet" && $switch_type != "voq" ]] ; then
+    [[ "$1" =~ .*"_INTERNAL_".* ]]
+  else
+    if [[ $external_only == "true" ]] ; then
+      [[ "$1" =~ .*"_INTERNAL_".* || "$1" =~ .*"_VOQ_".* ]]
+    else
+      return 1
+    fi
+  fi
 }
 
 function check_not_installed()
