@@ -131,7 +131,7 @@
         "desc": "Verifying valid subtype value downstreamLC"
     },
     "DEVICE_METADATA_VALID_SUBTYPE4": {
-        "desc": "Verifying valid subtype value LowerSpine"
+        "desc": "Verifying valid subtype value LowerSpineRouter"
     },
     "DEVICE_METADATA_INVALID_SUBTYPE": {
         "desc": "Verifying invalid subtype value",
