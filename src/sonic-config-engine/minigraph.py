@@ -2191,7 +2191,7 @@ def parse_xml(filename, platform=None, port_config_file=None, asic_name=None, hw
             print("Warning: more than one peer switch was found. Only the first will be parsed: {}".format(results['PEER_SWITCH'].keys()[0]))
 
         results['DEVICE_METADATA']['localhost']['peer_switch'] = list(results['PEER_SWITCH'].keys())[0]
-    elif results['DEVICE_METADATA']['localhost']['type'] == 'SpineRouter' and results['DEVICE_METADATA']['localhost']['subtype'] != "LowerSpineRouter":
+    elif results['DEVICE_METADATA']['localhost']['type'] == 'SpineRouter':
         if macsec_enabled == 'True':
             results['DEVICE_METADATA']['localhost']['subtype'] = 'UpstreamLC'
         elif macsec_enabled == 'False':
