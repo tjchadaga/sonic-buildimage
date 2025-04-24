@@ -1,8 +1,11 @@
 !
 ! template: bgpd/templates/BGPMON/peer-group.conf.j2
 !
+{% if DEVICE_METADATA['localhost']['sub_role'] == 'FrontEnd' or DEVICE_METADATA['localhost']['sub_role'] == 'BackEnd' %}
+{% set multi_asic = True %}
+{% endif %}
   neighbor BGPMON peer-group
-{% if CONFIG_DB__DEVICE_METADATA['localhost']['type'] == 'SpineRouter' %}
+{% if multi_asic is defined %}
   neighbor BGPMON update-source Loopback4096
 {% elif loopback0_ipv4 %}
   neighbor BGPMON update-source {{ loopback0_ipv4 | ip }}
@@ -16,7 +19,7 @@
     neighbor BGPMON maximum-prefix 1
   exit-address-family
 
-{% if CONFIG_DB__DEVICE_METADATA['localhost']['type'] == 'SpineRouter' %}
+{% if multi_asic is defined %}
   address-family ipv6
     neighbor BGPMON activate
     neighbor BGPMON route-map FROM_BGPMON in
