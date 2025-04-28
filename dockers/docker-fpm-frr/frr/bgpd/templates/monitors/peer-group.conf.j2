@@ -1,7 +1,7 @@
 !
 ! template: bgpd/templates/BGPMON/peer-group.conf.j2
 !
-{% if DEVICE_METADATA['localhost']['sub_role'] == 'FrontEnd' or DEVICE_METADATA['localhost']['sub_role'] == 'BackEnd' %}
+{% if CONFIG_DB__DEVICE_METADATA['localhost']['sub_role'] == 'FrontEnd' or CONFIG_DB__DEVICE_METADATA['localhost']['sub_role'] == 'BackEnd' %}
 {% set multi_asic = True %}
 {% endif %}
   neighbor BGPMON peer-group
