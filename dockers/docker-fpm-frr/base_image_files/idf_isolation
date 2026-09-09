@@ -7,7 +7,7 @@ if [ "$EUID" -ne 0 ] ; then
 fi
 
 # Command is only supported on spine routers
-if [[ "$(sonic-cfggen -d -v DEVICE_METADATA.localhost.type)" != *"SpineRouter"* ]] ; then
+if [[ ! "$(sonic-cfggen -d -v DEVICE_METADATA.localhost.type)" =~ ^(SpineRouter|UpperSpineRouter|LowerSpineRouter)$ ]] ; then
     echo "Operation is not supported on this platform"
     exit 1
 fi
